@@ -10,9 +10,18 @@ ARGS = {
     'long': [
         'help',
         'dir=',
+        'rev=',
     ],
-    'short': 'hd:',
+    'short': 'hd:r:',
 }
+
+def ask_continue():
+    try:
+        input('Press Enter to continue...')
+        return True
+    except KeyboardInterrupt:
+        print('\nAborted.')
+        return False
 
 
 def usage():
@@ -26,17 +35,22 @@ def main():
         print(err)
         return 1
 
-    DIR = '/home/tcn_ppro/workspace/ppro-bash'
+    START_REV=''
+    DIR = os.getcwd()
     for o, a in opts:
         if o in ('-h', '--help'):
             usage()
             return 0
         elif o in ('-d', '--dir'):
             DIR=a
+        elif o in ('-r', '--rev'):
+            START_REV=a
         
     if not os.path.isdir(DIR):
         print('Invalid directory')
         return 1
+    else:
+        print('Directory:',DIR)
     try:
         git_repo = git.Repo(DIR)
 
@@ -48,36 +62,110 @@ def main():
         print('Empty git repository')
         return 1
 
-    git_log = git_repo.head.log()
-    if len(git_log) == 0:
-        print('Git log empty')
-        return 1
+    # Make sure we are back at master
+    git_repo.git.checkout('master')
 
-    print('Git log found:',len(git_log), 'entries')
+
+    # Use manually command to get every log hash
+    git_log = git_repo.git.log('--pretty=%H').split('\n')
+
+    print(
+        'GIT repo found\n',
+        'Last commit',time.asctime(time.gmtime(git_repo.head.commit.committed_date)),'\n',
+        'Entries',len(git_log)
+    )
+
+    if START_REV != '':
+        print('Starting revision:\n',START_REV)
 
     svn_repo = svn.local.LocalClient(DIR)
     try:
-        print(svn_repo.info())
+        print('SVN repo found\n',svn_repo.info()['repository/root'])
     except svn.exception.SvnException:
         print('Invalid svn repository')
         return 1
 
-    try:
-        input('Press Enter to continue...')
-    except KeyboardInterrupt:
-        print('\nAborted.')
+    if not ask_continue():
         return 1
 
+    rev = svn_repo.info()['commit_revision']
 
-
+    svn_commit_count=0
+    svn_count = dict()
     # Commit each git commit into svn
-    for cl in git_log:
-        commit = git_repo.commit(cl.newhexsha)
-        print(time.asctime(time.gmtime(commit.committed_date)),' ',commit)
+    for ch in git_log[::-1]:
+        if START_REV != '' and not ch.startswith(START_REV):
+            continue
+        else:
+            START_REV=''
+        print('-----------------------------------------------------')
+        commit = git_repo.commit(ch)
+        commit_date=time.asctime(time.gmtime(commit.committed_date))
+        print(commit_date,' ',commit)
         print(commit.message)
+        git_repo.git.checkout(ch)
+        
+        # if not ask_continue():
+        #     return 1
 
+        try:
+            svn_count.clear()
+            svn_status = svn_repo.status()
+
+            for fs in svn_status:
+                status = fs.type_raw_name
+                if status in svn_count:
+                    svn_count[status]+=1
+                else:
+                    svn_count[status]=1
+                if status in [ 'unversioned' ]:
+                    # print('add',fs.name)
+                    svn_repo.add(fs.name)
+                elif status in [ 'missing' ]:
+                    # print('remove',fs.name)
+                    svn_repo.run_command('remove',[fs.name])
+                elif status in [ 'modified', 'added', 'normal', 'deleted' ]:
+                    continue
+                else:
+                    print('Unknown status:',status)
+                    raise Exception
+
+        except:
+            print(
+                'SVN add/remove error:',
+                '\n',sys.exc_info()[0],
+                '\n',status,
+                '\n',fs.name
+            )
+            return 1
+
+        print("SVN Changes:\n",svn_count)
+
+        if commit.message.startswith('gits'):
+            message = commit.message
+        else:
+            message = commit.committer.name + ' ' + commit_date + '\n' + commit.message
+
+
+        try:
+            svn_repo.commit(message)
+            svn_repo.update()
+            if rev >= svn_repo.info()['commit_revision']:
+                print('SVN commit failed: Nothing committed')
+                continue
+
+            rev = svn_repo.info()['commit_revision']
+
+            print('SVN revision: ',svn_repo.info()['commit_revision'])
+            svn_commit_count+=0
+        except:
+            print('SVN commit failed:',sys.exc_info()[0])
+            return 1
+        
+        print('')
+
+
+    print("SVN Commits:\n",svn_commit_count)
     return 0
-
-    # git_repo.head.set_commit(commit)
 
 main()
