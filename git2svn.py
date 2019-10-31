@@ -63,7 +63,7 @@ def main():
         return 1
 
     # Make sure we are back at master
-    git_repo.git.checkout('master')
+    git_repo.git.checkout('master','--force')
 
 
     # Use manually command to get every log hash
@@ -92,18 +92,25 @@ def main():
 
     svn_commit_count=0
     svn_count = dict()
+
+    count = dict()
+    count['total'] = len(git_log)
+    count['current'] = -1
     # Commit each git commit into svn
     for ch in git_log[::-1]:
+        count['current']+=1
         if START_REV != '' and not ch.startswith(START_REV):
             continue
         else:
             START_REV=''
         print('-----------------------------------------------------')
+        print(count['current'],'/',count['total'])
         commit = git_repo.commit(ch)
         commit_date=time.asctime(time.gmtime(commit.committed_date))
         print(commit_date,' ',commit)
         print(commit.message)
-        git_repo.git.checkout(ch)
+        git_repo.git.checkout(ch,'--force')
+
         
         # if not ask_continue():
         #     return 1
