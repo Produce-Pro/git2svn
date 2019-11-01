@@ -120,6 +120,9 @@ def main():
             svn_status = svn_repo.status()
 
             for fs in svn_status:
+                if fs.name.find('.git/') != -1:
+                    print('Git repository is being included in svn\n',fs.name)
+                    raise Exception
                 status = fs.type_raw_name
                 if status in svn_count:
                     svn_count[status]+=1
