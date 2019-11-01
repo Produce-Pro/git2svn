@@ -164,7 +164,7 @@ def main():
             rev = svn_repo.info()['commit_revision']
 
             print('SVN revision: ',svn_repo.info()['commit_revision'])
-            svn_commit_count+=0
+            svn_commit_count+=1
         except:
             print('SVN commit failed:',sys.exc_info()[0])
             return 1
