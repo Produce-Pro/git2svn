@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "git2svn"
+version = "0.1.0"
+description = "Commit to SVN using git repository"
+authors = ["Tyler Neuenschwander <tcn@producepro.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.6,<3.9"
+svn = "^1.0.1"
+GitPython = "^3.1.14"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+flake8 = "^3.8.3"
+black = "^19.10b0"
+mypy = "^0.782"
+pex = "^2.1.15"
+
+[tool.poetry.scripts]
+ppro-foreman = "ppro_foreman.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

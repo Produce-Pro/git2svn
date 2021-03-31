@@ -9,7 +9,12 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "internalConsole"
+            "console": "integratedTerminal",
+            "args": [
+                // "--rev", "fcf2b43fa4ef644cd610c", 
+                "--dir",
+                "/home/tcn_ppro/workspace/src"
+            ]
         }
     ]
 }
