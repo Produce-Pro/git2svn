@@ -12,12 +12,12 @@ setup:
 	poetry install --remove-untracked
 build: $(PEX_FILE)
 
-$(PEX_FILE): ppro_foreman/*.py requirements.txt
+$(PEX_FILE): git2svn/*.py requirements.txt
 	poetry build
 	rm -f $(PEX_FILE)
 	poetry run pex . --disable-cache \
 		--requirement=requirements.txt \
-		--entry-point=ppro_foreman.cli:main \
+		--entry-point=git2svn.git2svn:main \
 		--output-file=$(PEX_FILE)
 
 requirements.txt: poetry.lock
