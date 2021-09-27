@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "git2svn"
-version = "0.2.1"
+version = "0.2.2"
 description = "Commit to SVN using git repository"
 authors = ["Tyler Neuenschwander <tcn@producepro.com>"]
 
