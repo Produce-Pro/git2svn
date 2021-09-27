@@ -22,7 +22,8 @@ def main(
 
     svn_repo = svn.local.LocalClient(DIR)
     try:
-        typer.echo("SVN repo found\n", svn_repo.info()["repository/root"])
+        typer.echo("SVN repo found")
+        typer.echo(svn_repo.info()["repository/root"])
     except svn.exception.SvnException:
         typer.echo("Invalid svn repository", err=True)
         return 1
@@ -48,13 +49,12 @@ def main(
     git_log = git_repo.git.log("--pretty=%H").split("\n")
 
     typer.echo(
-        f"  Last commit {typer.echo(time.asctime(time.gmtime(git_repo.head.commit.committed_date)))}"
+        f"  Last commit {time.asctime(time.gmtime(git_repo.head.commit.committed_date))}"
     )
     typer.echo(f"  Entries {len(git_log)}")
 
     if START_REV != "":
-        typer.echo("Starting revision:")
-        typer.echo(START_REV)
+        typer.echo(f"Starting revision: {START_REV}")
 
     rev = svn_repo.info()["commit_revision"]
 
@@ -65,7 +65,7 @@ def main(
     count["total"] = len(git_log)
     count["current"] = -1
     # Commit each git commit into svn
-    for ch in git_log[::-1]:
+    for ch in reversed(git_log):
         count["current"] += 1
         if START_REV != "" and not ch.startswith(START_REV):
             continue
@@ -130,7 +130,7 @@ def main(
 
             rev = svn_repo.info()["commit_revision"]
 
-            typer.echo("SVN revision: ", svn_repo.info()["commit_revision"])
+            typer.echo(f'SVN revision: {svn_repo.info()["commit_revision"]}')
             svn_commit_count += 1
         except:
             typer.echo(f"SVN commit failed: {sys.exc_info()[0]}")
@@ -138,7 +138,7 @@ def main(
 
         typer.echo("")
 
-    typer.echo("SVN Commits:\n {svn_commit_count}")
+    typer.echo(f"SVN Commits:\n {svn_commit_count}")
     return 0
 
 
