@@ -17,7 +17,7 @@ $(PEX_FILE): git2svn/*.py requirements.txt
 	rm -f $(PEX_FILE)
 	poetry run pex . --disable-cache \
 		--requirement=requirements.txt \
-		--entry-point=git2svn.git2svn:main \
+		--entry-point=git2svn.git2svn:cli \
 		--output-file=$(PEX_FILE)
 
 requirements.txt: poetry.lock
