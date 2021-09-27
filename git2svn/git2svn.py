@@ -1,63 +1,44 @@
-import getopt
 import os
 import sys
 import time
+from typing import Dict, Optional
 
 import git
 import svn.local
+import typer
 
-ARGS = {
-    "long": ["help", "dir=", "rev=",],
-    "short": "hd:r:",
-}
+app = typer.Typer()
 
 
-def ask_continue():
-    try:
-        input("Press Enter to continue...")
-        return True
-    except KeyboardInterrupt:
-        print("\nAborted.")
-        return False
-
-
-def usage():
-    print("git2svn: Commit git changes to svn")
-
-
-def main():
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], ARGS["short"], ARGS["long"])
-    except getopt.GetoptError as err:
-        usage()
-        print(err)
-        return 1
-
-    START_REV = ""
-    DIR = os.getcwd()
-    for o, a in opts:
-        if o in ("-h", "--help"):
-            usage()
-            return 0
-        elif o in ("-d", "--dir"):
-            DIR = a
-        elif o in ("-r", "--rev"):
-            START_REV = a
-
+def main(
+    DIR: str = typer.Option(os.getcwd(), help="Git & SVN Working Directory"),
+    START_REV: Optional[str] = typer.Option("", help="Starting Git commit revision"),
+):
     if not os.path.isdir(DIR):
-        print("Invalid directory")
+        typer.echo("Invalid directory", err=True)
         return 1
     else:
-        print("Directory:", DIR)
+        typer.echo(f"Directory: {DIR}")
+
+    svn_repo = svn.local.LocalClient(DIR)
+    try:
+        typer.echo("SVN repo found\n", svn_repo.info()["repository/root"])
+    except svn.exception.SvnException:
+        typer.echo("Invalid svn repository", err=True)
+        return 1
+
     try:
         git_repo = git.Repo(DIR)
-
     except git.exc.InvalidGitRepositoryError:
-        print("Invalid git repository")
+        typer.echo("Invalid git repository", err=True)
         return 1
 
     if git_repo.bare:
-        print("Empty git repository")
+        typer.echo("Empty git repository", err=True)
+        return 1
+
+    typer.echo("GIT repo found")
+    if not typer.confirm("Are you sure you want to continue?"):
         return 1
 
     # Make sure we are back at master
@@ -66,32 +47,19 @@ def main():
     # Use manually command to get every log hash
     git_log = git_repo.git.log("--pretty=%H").split("\n")
 
-    print(
-        "GIT repo found\n",
-        "Last commit",
-        time.asctime(time.gmtime(git_repo.head.commit.committed_date)),
-        "\n",
-        "Entries",
-        len(git_log),
+    typer.echo(
+        f"  Last commit {typer.echo(time.asctime(time.gmtime(git_repo.head.commit.committed_date)))}"
     )
+    typer.echo(f"  Entries {len(git_log)}")
 
     if START_REV != "":
-        print("Starting revision:\n", START_REV)
-
-    svn_repo = svn.local.LocalClient(DIR)
-    try:
-        print("SVN repo found\n", svn_repo.info()["repository/root"])
-    except svn.exception.SvnException:
-        print("Invalid svn repository")
-        return 1
-
-    if not ask_continue():
-        return 1
+        typer.echo("Starting revision:")
+        typer.echo(START_REV)
 
     rev = svn_repo.info()["commit_revision"]
 
     svn_commit_count = 0
-    svn_count = dict()
+    svn_count: Dict = dict()
 
     count = dict()
     count["total"] = len(git_log)
@@ -103,12 +71,12 @@ def main():
             continue
         else:
             START_REV = ""
-        print("-----------------------------------------------------")
-        print(count["current"], "/", count["total"])
+        typer.echo("-----------------------------------------------------")
+        typer.echo(f'{count["current"]}/{count["total"]}')
         commit = git_repo.commit(ch)
         commit_date = time.asctime(time.gmtime(commit.committed_date))
-        print(commit_date, " ", commit)
-        print(commit.message)
+        typer.echo(f"{commit_date} {commit}")
+        typer.echo(commit.message)
         git_repo.git.checkout(ch, "--force")
 
         # if not ask_continue():
@@ -120,7 +88,7 @@ def main():
 
             for fs in svn_status:
                 if fs.name.find(".git/") != -1:
-                    print("Git repository is being included in svn\n", fs.name)
+                    typer.echo(f"Git repository is being included in svn {fs.name}")
                     raise Exception
                 status = fs.type_raw_name
                 if status in svn_count:
@@ -128,30 +96,25 @@ def main():
                 else:
                     svn_count[status] = 1
                 if status in ["unversioned"]:
-                    # print('add',fs.name)
+                    # typer.echo('add',fs.name)
                     svn_repo.add(fs.name)
                 elif status in ["missing"]:
-                    # print('remove',fs.name)
+                    # typer.echo('remove',fs.name)
                     svn_repo.run_command("remove", [fs.name])
                 elif status in ["modified", "added", "normal", "deleted"]:
                     continue
                 else:
-                    print("Unknown status:", status)
+                    typer.echo(f"Unknown status: {status}")
                     raise Exception
 
         except:
-            print(
-                "SVN add/remove error:",
-                "\n",
-                sys.exc_info()[0],
-                "\n",
-                status,
-                "\n",
-                fs.name,
-            )
+            typer.echo("SVN add/remove error:")
+            typer.echo(sys.exc_info()[0])
+            typer.echo(status)
+            typer.echo(fs.name)
             return 1
 
-        print("SVN Changes:\n", svn_count)
+        typer.echo(f"SVN Changes:\n {svn_count}")
 
         if commit.message.startswith("gits"):
             message = commit.message
@@ -162,19 +125,27 @@ def main():
             svn_repo.commit(message)
             svn_repo.update()
             if rev >= svn_repo.info()["commit_revision"]:
-                print("SVN commit failed: Nothing committed")
+                typer.echo("SVN commit failed: Nothing committed")
                 continue
 
             rev = svn_repo.info()["commit_revision"]
 
-            print("SVN revision: ", svn_repo.info()["commit_revision"])
+            typer.echo("SVN revision: ", svn_repo.info()["commit_revision"])
             svn_commit_count += 1
         except:
-            print("SVN commit failed:", sys.exc_info()[0])
+            typer.echo(f"SVN commit failed: {sys.exc_info()[0]}")
             return 1
 
-        print("")
+        typer.echo("")
 
-    print("SVN Commits:\n", svn_commit_count)
+    typer.echo("SVN Commits:\n {svn_commit_count}")
     return 0
+
+
+def cli():
+    typer.run(main)
+
+
+if __name__ == "__main__":
+    cli()
 
